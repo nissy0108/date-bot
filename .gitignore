@@ -1,0 +1,29 @@
+# .gitignore
+
+# secrets / env
+.env
+.env.*
+*.pem
+
+# local training data (do not publish)
+data/*.local.csv
+data/date_bot_train_slots.csv
+data/date_bot_train.csv
+
+# python / jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# eval outputs
+**/date_bot_eval_pred.csv
+**/date_bot_eval_report.csv
+
+# large artifacts (optional: remove these lines if you commit small LoRA)
+# adapters/**/*.safetensors
+# adapters/**/*.bin

@@ -1,0 +1,9 @@
+input,output,category
+こゆたんと土曜の午後、上野で安く遊びたい,budget:3000\ntime_slot:昼/午後\narea:上野\nmood:コスパ\navoid_areas:,slot
+朝から夜まで遊びたい１万で,budget:10000\ntime_slot:朝から夜（終日）\narea:\nmood:\navoid_areas:,slot
+新宿以外がいい,budget:\ntime_slot:\narea:\nmood:\navoid_areas:新宿,slot
+新宿以外で、上野がいい。午後、一人5000円,budget:5000\ntime_slot:昼/午後\narea:上野\nmood:\navoid_areas:新宿,slot
+渋谷で夜に映画とご飯,budget:\ntime_slot:夜/夕方\narea:渋谷\nmood:映画、ご飯\navoid_areas:,slot
+お台場で水族館、予算は抑えめ,budget:3000\ntime_slot:\narea:お台場\nmood:水族館\navoid_areas:,slot
+品川あたりでカフェしたい,budget:\ntime_slot:\narea:品川\nmood:カフェ\navoid_areas:,slot
+予算8000円、夕方から新宿,budget:8000\ntime_slot:夜/夕方\narea:新宿\nmood:\navoid_areas:,slot
