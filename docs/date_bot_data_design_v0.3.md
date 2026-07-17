@@ -1,89 +1,90 @@
-# デートBot データ設計書（v0.3）
+# デートBot データ設計書（v0.4）
 
 | 項目 | 内容 |
 |------|------|
-| 作成日 | 2026-07-17 |
-| 対応要件 | `date_bot_requirements_v1.md` v1.2 |
-| 更新 | **店舗CSV廃止**。エリア＋好み要約＋train.csv のみ |
+| 更新日 | 2026-07-18 |
+| 対応要件 | `date_bot_requirements_v1.md` v1.3 |
+| 準拠 | 現行ノート（スロット抽出＋後処理＋Gemini REST） |
 
 ---
 
-## 1. 確認済み決定
+## 1. 確定事項
 
 | 項目 | 決定 |
 |------|------|
-| 予算未指定時 | 一人 **3000円** 目安 |
-| 自前モデル | 授業寄り **軽量 + LoRA**（Qwen2.5-0.5B/1.5B 優先） |
-| 分業 | 自前＝キーワード抽出／Gemini＝具体プラン・店名案 |
-| 店舗リスト | **持たない**。優先エリア＋好み要約だけで十分 |
+| 予算未指定時 | 一人 **3000円** |
+| 自前モデル | Qwen2.5-1.5B-Instruct + LoRA（スロット抽出） |
+| Gemini | 3.1-flash-lite / REST。入力は slots＋好み要約 |
+| 店舗CSV | **使わない** |
+| 学習データ | `date_bot_train_slots.csv`（公開は sample のみ） |
 
 ---
 
-## 2. 全体アーキテクチャ（分業）
+## 2. スロット定義
+
+| キー | 意味 | 例 |
+|------|------|-----|
+| budget | 一人あたり円 | 3000, 10000 |
+| time_slot | 時間帯 | 昼/午後, 夜/夕方, 朝から夜（終日） |
+| area | 希望エリア | 渋谷, 上野, 新宿, お台場, 品川, 池袋 |
+| mood | 雰囲気・アクティビティ | コスパ, カフェ, 映画（読点区切り可） |
+| avoid_areas | 除外エリア | 新宿（list） |
+
+提案前に必須: `time_slot` と `area`（budget は無ければ 3000）。
+
+---
+
+## 3. 学習データ（output例）
 
 ```text
-ユーザー（複数ターン）
-    → 条件ヒアリング（budget / time_slot / area）
-    → 自前LoRA（キーワード抽出・口調・好み・NG・安価方針）
-    → Gemini（案3つ＋理由。入力は条件＋preferences要約のみ）
-    → 表示
+budget:3000
+time_slot:昼/午後
+area:上野
+mood:コスパ
+avoid_areas:
 ```
 
-Geminiへの材料:
-- スロット（予算・時間帯・エリア）
-- `preferences_summary` の要点（渋谷・上野・新宿／お台場〜品川、動物・カフェ・ご飯・コスパ 等）
-- 自前モデルがキーワード抽出
-
-※実在店名は Gemini の一般知識。不確実なら「候補」と書かせる。空席・予約は扱わない。
-
-提案前に揃えるスロット: `budget`（無ければ3000円想定と伝えて確認）, `time_slot`, `area`
+空欄は値なし。除外のみの発話では area を空、avoid_areas のみ埋める。  
+短い発話・予算だけの更新では、触らないスロットは空のまま。
 
 ---
 
-## 3. よく行くエリア（確認済み）
+## 4. 後処理ルール（概要）
 
-| # | エリア | メモ |
-|---|--------|------|
-| 1 | 渋谷 | 集合・ハブ多い |
-| 2 | 上野 | 動物園・博物館・公園口集合 |
-| 3 | 新宿 / お台場〜品川 | 同程度 |
+| ルール | 内容 |
+|--------|------|
+| avoid | 「以外/やめ/避け/NG」等が文に無いのに avoid が付いたら削除 |
+| time | 時間語が無いのに time_slot が付いたら削除 |
+| area | エリア語が無いのに area が付いたら削除 |
+| budget | `円` `万` `やっぱ5000` 等を正規表現で補完 |
+| budget_only | 予算だけの発話なら他スロットを None（マージで既存維持） |
+| mood | 文中キーワードから補完 |
 
-詳細: `date_bot_preferences_summary.md`
-
----
-
-## 4. 好み要約
-
-確認済み。学習の元データ＆Geminiへの固定コンテキスト。
+実装: ノート内 `postprocess_slots` / `scripts/date_bot_postprocess_slots.py`
 
 ---
 
-## 5. 学習用CSVスキーマ
+## 5. 好み要約
 
-`input,output,category`
-
-10件: preference×3 / ng×2 / plan_style×3 / clarify×2  
-ファイル: `date_bot_train.csv`（非公開）／`date_bot_train_sample.csv`（公開可）
+`date_bot_preferences_summary.md`  
+Gemini には短縮版（`prefs_for_gemini`）を渡す。店舗マスタは渡さない。
 
 ---
 
-## 6. 店舗CSV
+## 6. ファイル配置（リポジトリ）
 
-**廃止。** 作成済みの `date_bot_shops*.csv` は使わない（削除してよい）。
-
----
-
-## 7. 成果物（Downloads）
-
-| ファイル | 内容 | 公開 |
-|----------|------|------|
-| `date_bot_preferences_summary.md` | 好み要約（確認済み） | 要約のみなら可 |
-| `date_bot_train.csv` | 学習10件 | **非公開** |
-| `date_bot_train_sample.csv` | 公開用サンプル | 公開可 |
+| ファイル | 公開 |
+|----------|------|
+| `data/date_bot_train_slots_sample.csv` | 可 |
+| `data/date_bot_train_slots.local.csv` | 不可（gitignore） |
+| `data/date_bot_eval_gold.csv` | 可（個人情報なし） |
+| `docs/*` | 可 |
+| Drive上の `date_bot_lora/` | 任意（Gitに載せるかは任意） |
 
 ---
 
-## 8. 次アクション
+## 7. 対話上の注意（実装知見）
 
-1. Colab Phase A（軽量LoRA + Gemini分業 + 複数ターン）
-2. GitHub公開時は sample のみ
+- `for model in [...]` は LoRA の `model` を上書きする → ループ変数は `cand_name`
+- `len(text)<=2` で短文スキップすると「渋谷」が落ちる → 地名は例外にする
+- slots は累積。前ターンの area が残る。`reset` でクリア

@@ -1,39 +1,46 @@
 # LoRA の保存・読み込み（再学習しない）
 
-ベースの Qwen 本体は毎回 DL でよい。  
-**保存するのは LoRA アダプタだけ**（数MB〜数十MB程度が多い）。
+更新日: 2026-07-18  
+ベースモデルは毎回 Hugging Face から取得してよい。  
+**保存するのは LoRA アダプタのみ。**
 
----
-
-## A. 今の Colab セッションで保存（学習直後）
-
-### 1) Google Drive に保存（おすすめ）
+現行ノートでは Drive 保存セルあり:
 
 ```python
 from google.colab import drive
 drive.mount("/content/drive")
-
 SAVE_DIR = "/content/drive/MyDrive/date_bot_lora"
 model.save_pretrained(SAVE_DIR)
 tokenizer.save_pretrained(SAVE_DIR)
-print("saved to", SAVE_DIR)
 ```
 
-### 2) ローカルにダウンロード（GitHub用）
+---
+
+## A. 保存（学習直後・済）
+
+Google Drive: `/content/drive/MyDrive/date_bot_lora`
+
+任意で zip ダウンロード → リポジトリの `adapters/date_bot_lora/` へ。
 
 ```python
 import shutil
 from google.colab import files
-
 shutil.make_archive("/content/date_bot_lora", "zip", SAVE_DIR)
 files.download("/content/date_bot_lora.zip")
 ```
 
-解凍してリポジトリの `adapters/date_bot_lora/` に置く。
-
 ---
 
-## B. 次回 Colab（学習スキップ）
+## B. 次回起動（学習スキップ）
+
+実行順の例:
+
+1. ライブラリインストール  
+2. 設定（MODEL_ID, DEFAULT_BUDGET 等）  
+3. **読込セル（下記）** ← セクション2+5の代わり  
+4. Gemini セットアップ（セクション6）  
+5. 対話エンジン（セクション7）  
+6. 対話（セクション8）  
 
 ```python
 import torch
@@ -44,7 +51,7 @@ from google.colab import drive
 drive.mount("/content/drive")
 
 MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
-ADAPTER_DIR = "/content/drive/MyDrive/date_bot_lora"  # or アップロードした adapters/date_bot_lora
+ADAPTER_DIR = "/content/drive/MyDrive/date_bot_lora"
 
 USE_GPU = torch.cuda.is_available()
 tokenizer = AutoTokenizer.from_pretrained(ADAPTER_DIR, use_fast=True, trust_remote_code=True)
@@ -59,32 +66,29 @@ base = AutoModelForCausalLM.from_pretrained(
 )
 model = PeftModel.from_pretrained(base, ADAPTER_DIR)
 model.eval()
-print("LoRA loaded. trainable check:")
-model.print_trainable_parameters()
+peft_model = model
+print("loaded", ADAPTER_DIR)
 ```
 
-このあと **Gemini セットアップ → engine → 対話** だけ実行。  
-セクション3〜5（学習）は不要。
+スクリプト版: `scripts/colab_load_lora.py` / `scripts/colab_save_lora.py`
 
 ---
 
-## C. GitHub に載せるもの / 載せないもの
+## C. GitHub
 
 | 載せる | 載せない |
 |--------|----------|
-| コード・ノート・README | `GEMINI_API_KEY` |
-| sample CSV | LINE生ログ |
-| 小さめの LoRA（任意） | 本番 `*.local.csv`（gitignore済み） |
-| 要件・設計ドキュメント | |
+| コード・docs・sample CSV | APIキー |
+| 小さめ LoRA（任意） | LINE生ログ・本番CSV |
 
-LoRAをGitに入れたくない場合は Drive のみで運用してよい。
+Driveのみ運用でも可。
 
 ---
 
-## D. 動作確認
+## D. 確認
 
 ```python
-print(type(model))
+print(type(model), isinstance(model, str))  # str なら NG
 raw = local_generate("こゆたんと土曜の午後、上野で安く遊びたい", max_new_tokens=96)
 print(raw)
 ```

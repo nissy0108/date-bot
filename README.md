@@ -1,54 +1,37 @@
 # date-bot
 
-自分とこゆたん向けのデートプランBot（学習用・公開用）。
+自分とこゆたん向けのデートプランBot。
 
-## 構成
+## いまの動き
 
 ```text
 発話
-  → LoRA（スロット抽出: budget / time_slot / area / mood / avoid_areas）
-  → 後処理（幻覚抑制）
-  → slots マージ
-  → Gemini REST（案3つ＋理由）  ※slots + 好み要約のみ
+  → LoRA（スロット抽出）
+  → 後処理
+  → slots 蓄積
+  → Gemini REST（案3つ＋理由）
 ```
 
-- ベースモデル: `Qwen/Qwen2.5-1.5B-Instruct`（毎回 Hugging Face から取得）
-- 保存するもの: **LoRAアダプタのみ**（軽い。再学習不要）
-- Gemini: `gemini-3.1-flash-lite`（APIキーは Colab Secrets。リポジトリに載せない）
+- ベース: `Qwen/Qwen2.5-1.5B-Instruct` + LoRA  
+- Gemini: `gemini-3.1-flash-lite`（REST、Secretsでキー管理）  
+- LoRAは Google Drive に保存済み想定 → **再学習なしで再開可**（[docs/SAVE_LOAD.md](docs/SAVE_LOAD.md)）
 
-## フォルダ
+## ドキュメント
 
-| パス | 内容 |
-|------|------|
-| `notebooks/date_bot_phase_a.ipynb` | Colab本体 |
-| `data/*_sample.csv` | 公開用サンプル |
-| `data/*.local.csv` | 本番学習データ（gitignore） |
-| `adapters/` | 学習済みLoRA（Driveからコピー。大きい場合はgit LFSまたはDriveのみ） |
-| `docs/` | 要件・設計 |
-| `scripts/` | 評価・後処理 |
+→ [docs/](docs/)（要件・設計・好み・保存手順）
 
-## 初回（学習して保存）
+## クイックスタート（Colab・2回目以降）
 
-Colab GPU でノートを開き、学習後に次を実行（詳細は `docs/SAVE_LOAD.md`）。
+1. GPU  
+2. `scripts/colab_load_lora.py` でアダプタ読込  
+3. ノートの Gemini → engine → 対話  
+4. 学習セルはスキップ  
 
-1. LoRAを Google Drive に `save_pretrained`
-2. zip をローカルにダウンロード → `adapters/date_bot_lora/` へ
-3. このリポジトリを GitHub に push
+初回学習やトラブルは [docs/SAVE_LOAD.md](docs/SAVE_LOAD.md) とノート本体を参照。
 
-## 2回目以降（再学習しない）
+## 公開ポリシー
 
-1. Colab GPU
-2. ベースモデル読込 + `PeftModel.from_pretrained(adapters/...)`
-3. Gemini セットアップ → 対話
+- 載せる: コード、docs、sample CSV  
+- 載せない: APIキー、LINE生ログ、本番学習CSV  
 
-学習セル（3〜5）はスキップ可。
-
-## 秘密情報
-
-- `GEMINI_API_KEY` は Colab Secrets のみ
-- LINE生ログ・本名などは入れない
-- 公開するのは sample CSV とコード。本番 `*.local.csv` は非公開
-
-## ライセンス・注意
-
-趣味・学習用途。予約代行・在庫確認・投資助言・恋愛深掘りは対象外。
+リポジトリ: https://github.com/nissy0108/date-bot
