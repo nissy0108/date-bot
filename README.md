@@ -22,22 +22,41 @@
   → slots を Python 側で保持
 ```
 
+**Phase B Web UI** — [`app/`](app/)（FastAPI + 素のWeb）
+
+```text
+Login（4桁）
+  → チャット + 条件パネル（1画面）
+  → time_slot / area が揃えば案3つ
+  → 条件変更でメインに復帰（slots保持）
+```
+
 - ベース: `Qwen/Qwen2.5-1.5B-Instruct` + LoRA（LoRA版）  
 - Gemini: `gemini-3.1-flash-lite`（REST、Secretsでキー管理）  
-- LoRAは Google Drive に保存済み想定 → **再学習なしで再開可**（[docs/SAVE_LOAD.md](docs/SAVE_LOAD.md)）
+- LoRAは Google Drive に保存済み想定 → **再学習なしで再開可**（[docs/SAVE_LOAD.md](docs/SAVE_LOAD.md)）  
+- Web UI仕様: [docs/date_bot_ui_phase_b.md](docs/date_bot_ui_phase_b.md)
 
 ## ドキュメント
 
-→ [docs/](docs/)（要件・設計・好み・保存手順）
+→ [docs/](docs/)（要件・設計・好み・保存手順・Phase B UI）
 
 ## クイックスタート
 
-### Gemini一本（CPU可・おすすめ暫定）
+### Phase B Web（ローカル・おすすめ）
+
+1. `cp .env.example .env` に `GEMINI_API_KEY` と `APP_PASSWORD`（4桁）を書く  
+2. `pip install -r requirements-web.txt`  
+3. `uvicorn app.main:app --reload --port 8000`  
+4. ブラウザで `http://127.0.0.1:8000`
+
+Hugging Face Spaces（Docker / CPU）は [docs/date_bot_ui_phase_b.md](docs/date_bot_ui_phase_b.md) を参照。有料枠が必要なら導入前に確認。
+
+### Gemini一本（Colab）
 
 1. [notebooks/date_bot_gemini_only.ipynb](notebooks/date_bot_gemini_only.ipynb) を Colab で開く  
 2. Secrets に `GEMINI_API_KEY`  
 3. セクション 0 → 1 → 6 → 7 → 8（2〜5はスキップ）  
-4. 各ターンで `1: 対話入力` / `2: 条件選択`（固定リスト＋その他。揃えばそのターンで案3つ）
+4. 各ターンで `1: 対話入力` / `2: 条件選択`
 
 ### LoRA版（2回目以降・GPUあり）
 

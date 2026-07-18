@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>デートBot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+  <div class="bg-blob bg-blob-a" aria-hidden="true"></div>
+  <div class="bg-blob bg-blob-b" aria-hidden="true"></div>
+
+  <div id="app">
+    <!-- Login -->
+    <section id="view-login" class="view view-login">
+      <div class="login-shell">
+        <p class="brand-mark">デートBot</p>
+        <h1 class="login-title">ふたりのデート、ちょっと手伝うよ</h1>
+        <p class="login-sub">4桁のパスワードを入れてね</p>
+        <form id="login-form" class="login-form" autocomplete="off">
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            inputmode="numeric"
+            pattern="[0-9]{4}"
+            maxlength="4"
+            placeholder="••••"
+            required
+          />
+          <button type="submit" class="btn btn-primary">はじめる</button>
+        </form>
+        <p id="login-error" class="error" hidden></p>
+      </div>
+    </section>
+
+    <!-- Main -->
+    <section id="view-main" class="view view-main" hidden>
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-mark">デートBot</span>
+          <span class="topbar-tag">リョウスケ君 × こゆたん</span>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" id="btn-reset" class="btn btn-ghost">reset</button>
+          <button type="button" id="btn-logout" class="btn btn-ghost">logout</button>
+        </div>
+      </header>
+
+      <div class="main-grid">
+        <section class="panel chat-panel">
+          <h2 class="panel-title">おしゃべり</h2>
+          <div id="chat-log" class="chat-log" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form">
+            <input
+              id="chat-input"
+              type="text"
+              placeholder="例: こゆたんと土曜の午後、上野で安く遊びたい"
+              maxlength="2000"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn btn-primary" id="btn-chat-send">送る</button>
+          </form>
+        </section>
+
+        <section class="panel slots-panel">
+          <h2 class="panel-title">いまの条件</h2>
+          <p id="slots-summary" class="slots-summary"></p>
+
+          <form id="slots-form" class="slots-form">
+            <fieldset>
+              <legend>予算（一人）</legend>
+              <div id="budget-options" class="chip-row" data-key="budget" data-mode="single"></div>
+              <label class="other-label">その他
+                <input id="budget-other" type="text" placeholder="例: 4500" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>時間帯</legend>
+              <div id="time-options" class="chip-row" data-key="time_slot" data-mode="single"></div>
+              <label class="other-label">その他
+                <input id="time-other" type="text" placeholder="自由入力" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>エリア</legend>
+              <div id="area-options" class="chip-row" data-key="area" data-mode="single"></div>
+              <label class="other-label">その他
+                <input id="area-other" type="text" placeholder="自由入力" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>雰囲気・やりたいこと（複数可）</legend>
+              <div id="mood-options" class="chip-row" data-key="mood" data-mode="multi"></div>
+              <label class="other-label">その他
+                <input id="mood-other" type="text" placeholder="読点区切り可" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>除外エリア（複数可）</legend>
+              <div id="avoid-options" class="chip-row" data-key="avoid_areas" data-mode="multi"></div>
+              <label class="other-label">その他
+                <input id="avoid-other" type="text" placeholder="読点区切り可" />
+              </label>
+            </fieldset>
+
+            <button type="submit" class="btn btn-primary btn-block" id="btn-slots-apply">
+              条件を反映
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section class="history-panel" id="history-panel" aria-label="候補履歴">
+        <div class="history-head">
+          <h2 class="panel-title">候補履歴</h2>
+          <p class="history-sub">これまでの案3つセットがここに積み上がるよ（見るだけ）</p>
+        </div>
+        <div id="history-list" class="history-list"></div>
+        <p id="history-empty" class="history-empty">まだ候補がないよ。条件をそろえるとここに残るよ。</p>
+      </section>
+    </section>
+
+    <!-- Results -->
+    <section id="view-results" class="view view-results" hidden>
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-mark">デートBot</span>
+        </div>
+        <span class="topbar-tag">今日の候補</span>
+        <div class="topbar-actions">
+          <button type="button" id="btn-results-reset" class="btn btn-ghost">reset</button>
+        </div>
+      </header>
+
+      <div class="results-shell">
+        <p id="results-slots" class="slots-summary"></p>
+        <div id="plan-cards" class="plan-cards"></div>
+        <div class="results-actions">
+          <button type="button" id="btn-edit-slots" class="btn btn-primary btn-lg">
+            条件変更
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <div id="loading" class="loading-overlay" hidden aria-live="polite" aria-busy="true">
+      <div class="loading-card">
+        <div class="loading-heart" aria-hidden="true">
+          <svg viewBox="0 0 32 28" width="56" height="48" focusable="false">
+            <path
+              d="M16 26 C16 26 2 16 2 9 C2 4.5 5.5 2 9 2 C12 2 14.5 4 16 6.5 C17.5 4 20 2 23 2 C26.5 2 30 4.5 30 9 C30 16 16 26 16 26 Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+        <p class="loading-text">考え中…</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
