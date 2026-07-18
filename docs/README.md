@@ -1,6 +1,7 @@
 # docs 一覧（2026-07-18 更新）
 
-現行実装（スロット抽出 LoRA + Gemini REST）に合わせて更新済み。
+現行実装（スロット抽出 LoRA + Gemini REST）に合わせて更新済み。  
+GPU制限時の暫定経路として **Gemini一本モード** ノートあり。
 
 | ファイル | 内容 |
 |----------|------|
@@ -10,5 +11,9 @@
 | [date_bot_preferences_summary.md](./date_bot_preferences_summary.md) | 好み要約 |
 | [SAVE_LOAD.md](./SAVE_LOAD.md) | LoRA保存・再読込 |
 
-参考ノート: ローカルの最新 Colab ノート（Phase A）。  
+参考ノート:
+
+- Gemini一本（CPU可）: `../notebooks/date_bot_gemini_only.ipynb`
+- LoRA版 Phase A: `../notebooks/date_bot_phase_a_*.ipynb`
+
 学習データ公開用: `../data/date_bot_train_slots_sample.csv`
