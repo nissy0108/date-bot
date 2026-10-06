@@ -430,10 +430,22 @@ legend {
 .history-batch-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.history-batch-head-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.85rem;
 }
 
 .history-batch-title {
@@ -506,8 +518,26 @@ legend {
 
 .results-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: flex-start;
+  gap: 12px;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: rgba(40, 20, 30, 0.88);
+  color: #fff;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: rise 0.35s ease both;
 }
 
 /* Loading — center heart */

@@ -175,12 +175,14 @@ uvicorn app.main:app --reload --port 8000
 
 ---
 
-## 8. Hugging Face Spaces（次ステップ・無料枠）
+## 8. Hugging Face Spaces（Phase C）
 
-1. Docker Space（CPU）
-2. Secrets に `GEMINI_API_KEY` / `APP_PASSWORD`
-3. リポジトリの `Dockerfile` を使用（port 7860）
-4. 有料オプションが必要なら **導入前に必ず確認**
+手順の正本: [date_bot_hf_spaces_phase_c.md](./date_bot_hf_spaces_phase_c.md)
+
+1. Docker Space（CPU）＋ GitHub `main` 連携  
+2. Secrets: `GEMINI_API_KEY` / `APP_PASSWORD`  
+3. リポジトリ直下 `Dockerfile`（port **7860**）  
+4. 有料オプションは **導入前に必ず確認**
 
 ---
 

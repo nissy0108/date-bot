@@ -16,6 +16,8 @@
   const planCards = document.getElementById("plan-cards");
   const historyList = document.getElementById("history-list");
   const historyEmpty = document.getElementById("history-empty");
+  const toastEl = document.getElementById("toast");
+  const btnExportResults = document.getElementById("btn-export-results");
 
   let state = {
     slots: {},
@@ -24,6 +26,8 @@
     plan_history: [],
     slot_options: null,
   };
+  let resultsExportId = null;
+  let toastTimer = null;
 
   const chipHosts = {
     budget: document.getElementById("budget-options"),
@@ -53,6 +57,15 @@
     });
   }
 
+  function apiErrorMessage(data, status) {
+    const d = data?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) {
+      return d.map((x) => x.msg || x.message || JSON.stringify(x)).join(", ");
+    }
+    return data?.message || `HTTP ${status}`;
+  }
+
   async function api(path, options = {}) {
     const res = await fetch(path, {
       credentials: "same-origin",
@@ -65,7 +78,7 @@
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.detail || data.message || `HTTP ${res.status}`);
+      throw new Error(apiErrorMessage(data, res.status));
     }
     return data;
   }
@@ -215,6 +228,106 @@
     });
   }
 
+  function showToast(message) {
+    if (toastEl) {
+      toastEl.textContent = message;
+      toastEl.hidden = false;
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastEl.hidden = true;
+      }, 2400);
+    } else {
+      alert(message);
+    }
+  }
+
+  function latestPlanHistoryId() {
+    const history = state.plan_history || [];
+    if (!history.length) return null;
+    return history[history.length - 1].id;
+  }
+
+  async function fetchExportText(planHistoryId) {
+    const formatted = await api("/api/export/format", {
+      method: "POST",
+      body: JSON.stringify({ plan_history_id: planHistoryId }),
+    });
+    return formatted.text || "";
+  }
+
+  function copyTextWithFallback(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.width = "2em";
+    ta.style.height = "2em";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  async function copyExportText(_planHistoryId, textPromise) {
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      try {
+        const item = new ClipboardItem({
+          "text/plain": textPromise.then(
+            (t) => new Blob([t], { type: "text/plain" })
+          ),
+        });
+        await navigator.clipboard.write([item]);
+        return await textPromise;
+      } catch {
+        /* fall through */
+      }
+    }
+    const text = await textPromise;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return text;
+      } catch {
+        /* fall through */
+      }
+    }
+    if (copyTextWithFallback(text)) return text;
+    throw new Error("コピーに失敗したよ。ブラウザの権限を確認してね");
+  }
+
+  async function exportPlanSet(planHistoryId) {
+    const id = Number(planHistoryId);
+    if (!id) {
+      alert("コピーする候補セットが見つからないよ");
+      return;
+    }
+    const textPromise = fetchExportText(id);
+    setLoading(true);
+    try {
+      const text = await copyExportText(id, textPromise);
+      await api("/api/export/log", {
+        method: "POST",
+        body: JSON.stringify({ plan_history_id: id, text }),
+      });
+      showToast("コピーしたよ");
+    } catch (err) {
+      alert(err.message || "エクスポートに失敗したよ");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function formatHistoryTime(ts) {
     if (!ts) return "";
     try {
@@ -241,8 +354,11 @@
       wrap.className = "history-batch";
       wrap.innerHTML = `
         <div class="history-batch-head">
-          <h3 class="history-batch-title"></h3>
-          <span class="history-batch-time"></span>
+          <div class="history-batch-head-main">
+            <h3 class="history-batch-title"></h3>
+            <span class="history-batch-time"></span>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm btn-export">コピー</button>
         </div>
         <p class="history-batch-slots"></p>
         <div class="plan-cards"></div>
@@ -254,6 +370,9 @@
       wrap.querySelector(".history-batch-slots").textContent =
         batch.slots_summary || formatSlotsLocal(batch.slots);
       renderPlans(batch.plans || [], wrap.querySelector(".plan-cards"));
+      wrap.querySelectorAll(".btn-export").forEach((btn) => {
+        btn.dataset.planHistoryId = String(batch.id);
+      });
       historyList.appendChild(wrap);
     });
   }
@@ -284,6 +403,13 @@
     syncChipsFromSlots(data.slots || {});
     if (data.last_plans) renderPlans(data.last_plans);
     renderHistory(data.plan_history || state.plan_history || []);
+
+    const history = data.plan_history || state.plan_history || [];
+    resultsExportId =
+      history.length > 0 ? history[history.length - 1].id : null;
+    if (btnExportResults) {
+      btnExportResults.disabled = !resultsExportId;
+    }
 
     if (data.view_hint === "results" && data.last_plans?.length) {
       showView("results");
@@ -387,6 +513,19 @@
 
   document.getElementById("btn-edit-slots").addEventListener("click", () => {
     showView("main");
+  });
+
+  if (btnExportResults) {
+    btnExportResults.addEventListener("click", () => {
+      exportPlanSet(latestPlanHistoryId() ?? resultsExportId);
+    });
+  }
+
+  historyList.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-export");
+    if (!btn || !historyList.contains(btn)) return;
+    const raw = btn.dataset.planHistoryId;
+    exportPlanSet(raw ? Number(raw) : null);
   });
 
   // boot: try restore session

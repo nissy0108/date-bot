@@ -10,11 +10,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+from app.static_files import DevStaticFiles
 from pydantic import BaseModel, Field
 
 from app import auth
+from app.export_format import format_plan_history_entry, sha256_hex
 from app.gemini_engine import gemini_plans, gemini_turn
 from app.slots import (
     DEFAULT_BUDGET,
@@ -28,8 +30,10 @@ from app.slots import (
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT.parent / ".env")
 
+APP_STATIC_VERSION = "20261006-export2"
+
 app = FastAPI(title="デートBot", version="0.2.0")
-app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
+app.mount("/static", DevStaticFiles(directory=str(ROOT / "static")), name="static")
 templates = Jinja2Templates(directory=str(ROOT / "templates"))
 
 
@@ -45,12 +49,28 @@ class SlotsBody(BaseModel):
     slots: dict = Field(default_factory=dict)
 
 
+class ExportFormatBody(BaseModel):
+    plan_history_id: int = Field(..., ge=1)
+
+
+class ExportLogBody(BaseModel):
+    plan_history_id: int = Field(..., ge=1)
+    text: str = Field(..., min_length=1, max_length=9000)
+
+
 def _require_session(request: Request) -> tuple[str, auth.SessionState]:
     sid = request.cookies.get(auth.COOKIE_NAME)
     state = auth.get_session(sid)
     if not state or not sid:
         raise HTTPException(status_code=401, detail="login required")
     return sid, state
+
+
+def _find_plan_history_entry(state: auth.SessionState, plan_history_id: int) -> dict | None:
+    for entry in state.plan_history:
+        if entry.get("id") == plan_history_id:
+            return entry
+    return None
 
 
 def _append_plan_history(state: auth.SessionState, plans: list) -> dict:
@@ -86,6 +106,7 @@ async def index(request: Request):
         {
             "request": request,
             "app_name": "デートBot",
+            "static_version": APP_STATIC_VERSION,
         },
     )
 
@@ -95,11 +116,14 @@ async def login(body: LoginBody, response: Response):
     if body.password != auth.expected_password():
         raise HTTPException(status_code=401, detail="パスワードが違うよ")
     sid = auth.create_session()
+    # HF Spaces (HTTPS): Secure cookie when SPACE_ID is set by the platform
+    cookie_secure = bool(os.environ.get("SPACE_ID"))
     response.set_cookie(
         key=auth.COOKIE_NAME,
         value=sid,
         httponly=True,
         samesite="lax",
+        secure=cookie_secure,
         max_age=auth.SESSION_TTL_SEC,
     )
     state = auth.get_session(sid)
@@ -216,6 +240,42 @@ async def reset(request: Request):
     auth.reset_session(sess)
     sess.messages.append({"role": "bot", "content": "条件と履歴をリセットしたよ。"})
     return _state_payload(sess, view_hint="main")
+
+
+@app.post("/api/export/format")
+async def export_format(body: ExportFormatBody, request: Request):
+    _, sess = _require_session(request)
+    entry = _find_plan_history_entry(sess, body.plan_history_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="plan_history not found")
+    text = format_plan_history_entry(entry)
+    return {"plan_history_id": body.plan_history_id, "text": text}
+
+
+@app.post("/api/export/log")
+async def export_log(body: ExportLogBody, request: Request):
+    _, sess = _require_session(request)
+    entry = _find_plan_history_entry(sess, body.plan_history_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="plan_history not found")
+    expected = format_plan_history_entry(entry)
+    if body.text != expected:
+        raise HTTPException(status_code=400, detail="text mismatch")
+    log_entry = {
+        "exported_at": time.time(),
+        "plan_history_id": body.plan_history_id,
+        "text_length": len(body.text),
+        "text_sha256": sha256_hex(body.text),
+        "text": body.text,
+    }
+    sess.export_logs.append(log_entry)
+    return {"ok": True, "export_logs_count": len(sess.export_logs)}
+
+
+@app.get("/api/export/logs")
+async def export_logs(request: Request):
+    _, sess = _require_session(request)
+    return {"export_logs": sess.export_logs}
 
 
 @app.get("/api/health")

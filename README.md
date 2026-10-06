@@ -1,3 +1,13 @@
+---
+title: Date Bot
+emoji: 💕
+colorFrom: pink
+colorTo: red
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # date-bot
 
 自分とこゆたん向けのデートプランBot。
@@ -49,7 +59,7 @@ Login（4桁）
 3. `uvicorn app.main:app --reload --port 8000`  
 4. ブラウザで `http://127.0.0.1:8000`
 
-Hugging Face Spaces（Docker / CPU）は [docs/date_bot_ui_phase_b.md](docs/date_bot_ui_phase_b.md) を参照。有料枠が必要なら導入前に確認。
+**Phase C（HF Spaces）** — [docs/date_bot_hf_spaces_phase_c.md](docs/date_bot_hf_spaces_phase_c.md)（Docker / CPU / ポート 7860）。有料枠が必要なら導入前に確認。
 
 ### Gemini一本（Colab）
 

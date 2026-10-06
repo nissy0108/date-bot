@@ -7,6 +7,8 @@ Phase A（LoRA + Gemini / Colab）と Phase B（FastAPI Web・Gemini一本）が
 | [date_bot_requirements_v1.md](./date_bot_requirements_v1.md) | 要件定義 v1.3 |
 | [date_bot_arch_slots_v1.md](./date_bot_arch_slots_v1.md) | Phase A スロット抽出アーキテクチャ |
 | [date_bot_ui_phase_b.md](./date_bot_ui_phase_b.md) | **Phase B 仕組み・アーキテクチャ・UI** |
+| [date_bot_export_v1.md](./date_bot_export_v1.md) | **エクスポート（クリップボード）要件 v1** |
+| [date_bot_hf_spaces_phase_c.md](./date_bot_hf_spaces_phase_c.md) | **Phase C — HF Spaces デプロイ** |
 | [date_bot_data_design_v0.3.md](./date_bot_data_design_v0.3.md) | データ設計 v0.4相当 |
 | [date_bot_preferences_summary.md](./date_bot_preferences_summary.md) | 好み要約 |
 | [SAVE_LOAD.md](./SAVE_LOAD.md) | LoRA保存・再読込 |

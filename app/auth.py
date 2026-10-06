@@ -19,6 +19,7 @@ class SessionState:
     messages: list[dict] = field(default_factory=list)
     last_plans: list[dict] | None = None
     plan_history: list[dict] = field(default_factory=list)
+    export_logs: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
 
@@ -64,6 +65,7 @@ def reset_session(state: SessionState) -> None:
     state.messages = []
     state.last_plans = None
     state.plan_history = []
+    state.export_logs = []
 
 
 def public_state(state: SessionState) -> dict[str, Any]:
