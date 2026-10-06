@@ -13,5 +13,5 @@ COPY docs/date_bot_preferences_summary.md ./docs/date_bot_preferences_summary.md
 
 EXPOSE 7860
 
-# Hugging Face Spaces expects port 7860
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# HF Spaces: PORT unset → 7860. Render etc.: set PORT in the environment.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

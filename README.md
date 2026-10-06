@@ -59,7 +59,7 @@ Login（4桁）
 3. `uvicorn app.main:app --reload --port 8000`  
 4. ブラウザで `http://127.0.0.1:8000`
 
-**Phase C（HF Spaces）** — [docs/date_bot_hf_spaces_phase_c.md](docs/date_bot_hf_spaces_phase_c.md)（Docker / CPU / ポート 7860）。有料枠が必要なら導入前に確認。
+**Phase C（公開）** — HF Spaces: [docs/date_bot_hf_spaces_phase_c.md](docs/date_bot_hf_spaces_phase_c.md)（Docker / PRO 要のことが多い）。**無料**なら [docs/date_bot_render_deploy.md](docs/date_bot_render_deploy.md)（Render）。
 
 ### Gemini一本（Colab）
 

@@ -102,9 +102,9 @@ def _state_payload(state: auth.SessionState, *, view_hint: str | None = None) ->
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "app_name": "デートBot",
             "static_version": APP_STATIC_VERSION,
         },
@@ -116,8 +116,10 @@ async def login(body: LoginBody, response: Response):
     if body.password != auth.expected_password():
         raise HTTPException(status_code=401, detail="パスワードが違うよ")
     sid = auth.create_session()
-    # HF Spaces (HTTPS): Secure cookie when SPACE_ID is set by the platform
-    cookie_secure = bool(os.environ.get("SPACE_ID"))
+    # HTTPS hosts (HF Spaces, Render, …): Secure cookie
+    cookie_secure = bool(
+        os.environ.get("SPACE_ID") or os.environ.get("RENDER_EXTERNAL_URL")
+    )
     response.set_cookie(
         key=auth.COOKIE_NAME,
         value=sid,
