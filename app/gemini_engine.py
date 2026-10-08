@@ -12,6 +12,7 @@ import requests
 
 from app.slots import (
     DEFAULT_BUDGET,
+    is_tentative_proposal,
     missing_slots,
     normalize_slots,
     parse_plans_text,
@@ -33,12 +34,19 @@ def prefs_for_gemini() -> str:
     )
 
 
+def _budget_phrase(slots: dict) -> str:
+    budget = slots.get("budget")
+    if budget is not None:
+        return f"一人{budget}円以内"
+    return "予算未定（コスパ目安）"
+
+
 def fallback_plans(slots: dict) -> list[dict]:
     area = slots.get("area", "渋谷")
-    budget = slots.get("budget", DEFAULT_BUDGET)
+    budget_p = _budget_phrase(slots)
     templates = {
         "上野": [
-            (f"上野動物園 → 上野公園短散策 → 安めご飯（一人{budget}円以内）", "定番・コスパ"),
+            (f"上野動物園 → 上野公園短散策 → 安めご飯（{budget_p}）", "定番・コスパ"),
             ("博物館（常設寄り）→ カフェ", "屋内・午後向き"),
             ("公園散歩 → ラーメン/定食 → 早め解散", "ダラダラ回避"),
         ],
@@ -65,6 +73,40 @@ def fallback_plans(slots: dict) -> list[dict]:
     }
     key = area if area in templates else "渋谷"
     return [{"plan": plan, "reason": reason} for plan, reason in templates[key]]
+
+
+def fallback_plans_tentative(slots: dict) -> list[dict]:
+    """エリアなし（mood / time_slot / budget のみ）→ 優先エリアで仮案 3 つ。"""
+    mood = slots.get("mood")
+    time_hint = slots.get("time_slot") or "時間未定"
+    budget_only = "budget" in slots and not mood and not slots.get("time_slot")
+    budget_note = (
+        f"一人{slots['budget']}円目安"
+        if "budget" in slots
+        else "予算未定・コスパ目安"
+    )
+    areas = ["渋谷", "上野", "新宿"]
+    out: list[dict] = []
+    for area in areas:
+        base = fallback_plans({**slots, "area": area})[0]
+        if budget_only:
+            reason = f"{budget_note}。エリア未定の仮案・{time_hint}。"
+        else:
+            mood_s = mood or "コスパ"
+            reason = f"{budget_note}。{mood_s}寄り・{time_hint}。"
+        out.append(
+            {
+                "plan": f"【{area}・仮案】{base['plan']}",
+                "reason": reason,
+            }
+        )
+    return out
+
+
+def _pick_fallback(slots: dict) -> list[dict]:
+    if is_tentative_proposal(slots):
+        return fallback_plans_tentative(slots)
+    return fallback_plans(slots)
 
 
 def get_api_key() -> str | None:
@@ -151,12 +193,26 @@ def plans_to_list(plans) -> list[dict]:
 def gemini_plans(slots: dict) -> list[dict]:
     """slots が揃っているときの提案専用。list[{plan, reason}] を返す。"""
     if not get_api_key():
-        return fallback_plans(slots)
+        return _pick_fallback(slots)
 
-    budget = slots.get("budget", DEFAULT_BUDGET)
+    tentative = is_tentative_proposal(slots)
+    if "budget" in slots:
+        budget_line = f"一人あたり目安{slots['budget']}円。超過なら理由を書く。"
+    else:
+        budget_line = (
+            "予算は未定。案・理由で「予算未定」を明示し、"
+            f"ユーザーに{DEFAULT_BUDGET}円を決めつけた見出しにしない。"
+        )
+    area_line = (
+        "エリア未指定のため、渋谷・上野・新宿など優先エリアを使い、"
+        "3案は別エリア寄りにする。各案にエリアが分かるラベルを付ける。"
+        if tentative
+        else ""
+    )
     prompt = (
         "デートプラン補助。予約代行・在庫確認・恋愛深掘り禁止。個人情報禁止。\n"
-        f"制約: 東京23区、学生向けも意識。一人あたり目安{budget}円。超過なら理由を書く。\n"
+        f"制約: 東京23区、学生向けも意識。{budget_line}\n"
+        f"{area_line}\n"
         f"好み要約: {prefs_for_gemini()}\n"
         f"抽出済み条件slots: {json.dumps(slots, ensure_ascii=False)}\n"
         "avoid_areas は絶対に提案しない。\n"
@@ -179,9 +235,9 @@ def gemini_plans(slots: dict) -> list[dict]:
             parsed = plans_to_list(data.get("plans"))
         except Exception:
             parsed = plans_to_list(raw)
-        return parsed if parsed else fallback_plans(slots)
+        return parsed if parsed else _pick_fallback(slots)
     except (FuturesTimeout, Exception):
-        return fallback_plans(slots)
+        return _pick_fallback(slots)
 
 
 def gemini_turn(user_input: str, slots: dict) -> dict:
@@ -196,12 +252,11 @@ def gemini_turn(user_input: str, slots: dict) -> dict:
                 "clarify_message": template_clarify(need, merged),
                 "plans": None,
             }
-        merged.setdefault("budget", DEFAULT_BUDGET)
         return {
             "slots": merged,
             "need_clarify": False,
             "clarify_message": None,
-            "plans": fallback_plans(merged),
+            "plans": _pick_fallback(merged),
         }
 
     prev = {
@@ -235,8 +290,11 @@ def gemini_turn(user_input: str, slots: dict) -> dict:
         "- slots は「これまでのslots」に今回発話をマージした最終状態。触らない項目は前の値を残す。\n"
         "- 発話に無い情報を新たに捏造しない。予算だけの更新なら他スロットは維持。\n"
         "- 除外表現（以外/やめ/避け/NG等）があるときだけ avoid_areas を更新。累積可。\n"
-        "- time_slot と area が揃うまで need_clarify=true。plans は null。clarify_message にフランクな聞き返し。\n"
-        f"- 揃ったら need_clarify=false。budget未指定なら {DEFAULT_BUDGET} を入れてよい。plans は必ず3件。\n"
+        "- area がある、または mood のみ、または time_slot のみ、または budget のみなら案を出してよい（時間帯は任意）。\n"
+        "- mood/time_slot/budget のみ（area なし）のときは優先エリア（渋谷・上野・新宿・お台場・品川）で仮案3件。別エリア寄りに。budget 指定時は案にその上限を反映。\n"
+        "- エリアも mood も time_slot も budget も無い（avoid だけ等）→ need_clarify=true。plans は null。\n"
+        "- budget 未指定のとき slots.budget は null のまま。文案は「予算未定」を優先（3000円決め打ち禁止）。\n"
+        "- 案を出すとき need_clarify=false。plans は必ず3件。\n"
         "- 提案は東京23区・学生向けコスパ意識。avoid_areas は絶対に提案しない。超過予算は理由明示。\n"
         "- 不確実な店名は「候補:」。口調はフランク。\n"
         f"好み要約: {prefs_for_gemini()}\n"
@@ -259,12 +317,11 @@ def gemini_turn(user_input: str, slots: dict) -> dict:
                 "clarify_message": template_clarify(need, merged),
                 "plans": None,
             }
-        merged.setdefault("budget", DEFAULT_BUDGET)
         return {
             "slots": merged,
             "need_clarify": False,
             "clarify_message": None,
-            "plans": fallback_plans(merged),
+            "plans": _pick_fallback(merged),
         }
 
     merged = normalize_slots(data.get("slots") or {})
@@ -288,10 +345,9 @@ def gemini_turn(user_input: str, slots: dict) -> dict:
             "plans": None,
         }
 
-    merged.setdefault("budget", DEFAULT_BUDGET)
     plans = plans_to_list(data.get("plans"))
     if not plans:
-        plans = fallback_plans(merged)
+        plans = _pick_fallback(merged)
     return {
         "slots": merged,
         "need_clarify": False,

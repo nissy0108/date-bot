@@ -21,6 +21,10 @@ venv/
 # OS
 .DS_Store
 
+# local LAN dev (IP-specific)
+local-dev-phone-qr.png
+open-on-iphone.html
+
 # eval outputs
 **/date_bot_eval_pred.csv
 **/date_bot_eval_report.csv

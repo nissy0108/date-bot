@@ -11,9 +11,15 @@
   const chatForm = document.getElementById("chat-form");
   const chatInput = document.getElementById("chat-input");
   const slotsForm = document.getElementById("slots-form");
-  const slotsSummary = document.getElementById("slots-summary");
+  const globalSlotsSummary = document.getElementById("global-slots-summary");
+  const tabChat = document.getElementById("tab-chat");
+  const tabSlots = document.getElementById("tab-slots");
+  const panelChat = document.getElementById("panel-chat");
+  const panelSlots = document.getElementById("panel-slots");
+  const btnHistoryToggle = document.getElementById("btn-history-toggle");
   const resultsSlots = document.getElementById("results-slots");
   const planCards = document.getElementById("plan-cards");
+  const historyPanel = document.getElementById("history-panel");
   const historyList = document.getElementById("history-list");
   const historyEmpty = document.getElementById("history-empty");
   const toastEl = document.getElementById("toast");
@@ -28,6 +34,11 @@
   };
   let resultsExportId = null;
   let toastTimer = null;
+  let activeMainTab = "chat";
+  let historyExpanded = false;
+
+  const HISTORY_COLLAPSE_AFTER = 3;
+  const HISTORY_COLLAPSED_MAX = 2;
 
   const chipHosts = {
     budget: document.getElementById("budget-options"),
@@ -48,6 +59,24 @@
     Object.entries(views).forEach(([key, el]) => {
       el.hidden = key !== name;
     });
+  }
+
+  function setMainTab(name) {
+    activeMainTab = name === "slots" ? "slots" : "chat";
+    const chatOn = activeMainTab === "chat";
+    if (tabChat) {
+      tabChat.classList.toggle("is-active", chatOn);
+      tabChat.setAttribute("aria-selected", chatOn ? "true" : "false");
+    }
+    if (tabSlots) {
+      tabSlots.classList.toggle("is-active", !chatOn);
+      tabSlots.setAttribute("aria-selected", chatOn ? "false" : "true");
+    }
+    if (panelChat) panelChat.hidden = !chatOn;
+    if (panelSlots) panelSlots.hidden = chatOn;
+    if (chatOn && chatInput) {
+      chatInput.focus({ preventScroll: true });
+    }
   }
 
   function setLoading(on) {
@@ -228,17 +257,41 @@
     });
   }
 
-  function showToast(message) {
+  function showToast(message, durationMs = 2400) {
     if (toastEl) {
       toastEl.textContent = message;
       toastEl.hidden = false;
       if (toastTimer) clearTimeout(toastTimer);
       toastTimer = setTimeout(() => {
         toastEl.hidden = true;
-      }, 2400);
+      }, durationMs);
     } else {
       alert(message);
     }
+  }
+
+  function notifyUser(message) {
+    showToast(message, 3200);
+  }
+
+  /** 条件タブ等ではチャットが隠れるため、Bot 返答を見せる */
+  function revealBotFeedback(data) {
+    if (data.view_hint === "login") return;
+    if (data.view_hint === "results" && data.last_plans?.length) return;
+    const msgs = data.messages || [];
+    if (!msgs.length) return;
+    setMainTab("chat");
+    requestAnimationFrame(() => {
+      chatLog.scrollTop = chatLog.scrollHeight;
+    });
+  }
+
+  function notifyFromLastBotMessage(data) {
+    const msgs = data.messages || [];
+    const last = msgs[msgs.length - 1];
+    if (last?.role !== "bot") return;
+    const line = String(last.content || "").split("\n")[0].trim();
+    if (line) notifyUser(line.length > 72 ? `${line.slice(0, 69)}…` : line);
   }
 
   function latestPlanHistoryId() {
@@ -345,11 +398,33 @@
 
   function renderHistory(history) {
     const items = Array.isArray(history) ? history : [];
+    if (historyPanel) {
+      historyPanel.hidden = items.length === 0;
+    }
+    if (items.length === 0) {
+      historyExpanded = false;
+    }
     historyList.innerHTML = "";
-    historyEmpty.hidden = items.length > 0;
+    if (historyEmpty) historyEmpty.hidden = true;
 
-    // 新しいセットを上に
-    [...items].reverse().forEach((batch) => {
+    const reversed = [...items].reverse();
+    const shouldCollapse = items.length > HISTORY_COLLAPSE_AFTER && !historyExpanded;
+    const visible = shouldCollapse
+      ? reversed.slice(0, HISTORY_COLLAPSED_MAX)
+      : reversed;
+
+    if (btnHistoryToggle) {
+      if (items.length > HISTORY_COLLAPSE_AFTER) {
+        btnHistoryToggle.hidden = false;
+        btnHistoryToggle.textContent = historyExpanded
+          ? "たたむ"
+          : "すべての履歴を見る";
+      } else {
+        btnHistoryToggle.hidden = true;
+      }
+    }
+
+    visible.forEach((batch) => {
       const wrap = document.createElement("article");
       wrap.className = "history-batch";
       wrap.innerHTML = `
@@ -385,10 +460,16 @@
         ? avoid.join("、")
         : "なし"
       : avoid || "なし";
+    const budgetS = "budget" in slots ? `${slots.budget}円` : "予算未定";
+    const areaS =
+      slots.area ||
+      (slots.mood || slots.time_slot || Object.prototype.hasOwnProperty.call(slots, "budget")
+        ? "仮（優先エリア）"
+        : "エリア未定");
     return (
-      `予算 ${slots.budget ?? "未設定"} / ` +
+      `${budgetS} / ` +
       `${slots.time_slot || "時間未定"} / ` +
-      `${slots.area || "エリア未定"} / ` +
+      `${areaS} / ` +
       `mood ${slots.mood || "なし"} / ` +
       `除外 ${avoidS}`
     );
@@ -397,8 +478,10 @@
   function applyState(data) {
     state = { ...state, ...data };
     if (data.slot_options) buildChipRows(data.slot_options);
-    slotsSummary.textContent = data.slots_summary || "まだ条件なし";
-    resultsSlots.textContent = data.slots_summary || "";
+    const summaryText =
+      data.slots_summary || "まだ条件なし — 条件タブかおしゃべりで決めよう";
+    if (globalSlotsSummary) globalSlotsSummary.textContent = summaryText;
+    resultsSlots.textContent = data.slots_summary || summaryText;
     renderMessages(data.messages || []);
     syncChipsFromSlots(data.slots || {});
     if (data.last_plans) renderPlans(data.last_plans);
@@ -468,8 +551,11 @@
       });
       chatInput.value = "";
       applyState(data);
+      if (!(data.view_hint === "results" && data.last_plans?.length)) {
+        revealBotFeedback(data);
+      }
     } catch (err) {
-      alert(err.message || "送信に失敗したよ");
+      notifyUser(err.message || "送信に失敗したよ");
     } finally {
       setLoading(false);
     }
@@ -477,6 +563,7 @@
 
   slotsForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const fromSlotsTab = activeMainTab === "slots";
     setLoading(true);
     try {
       const data = await api("/api/slots", {
@@ -484,20 +571,27 @@
         body: JSON.stringify({ slots: collectSlotsPatch() }),
       });
       applyState(data);
+      if (!(data.view_hint === "results" && data.last_plans?.length)) {
+        revealBotFeedback(data);
+        if (fromSlotsTab) notifyFromLastBotMessage(data);
+      }
     } catch (err) {
-      alert(err.message || "条件の反映に失敗したよ");
+      notifyUser(err.message || "条件の反映に失敗したよ");
     } finally {
       setLoading(false);
     }
   });
 
   async function doReset() {
+    const fromSlotsTab = activeMainTab === "slots";
     setLoading(true);
     try {
       const data = await api("/api/reset", { method: "POST", body: "{}" });
       applyState(data);
+      revealBotFeedback(data);
+      if (fromSlotsTab) notifyFromLastBotMessage(data);
     } catch (err) {
-      alert(err.message || "reset失敗");
+      notifyUser(err.message || "reset失敗");
     } finally {
       setLoading(false);
     }
@@ -513,7 +607,18 @@
 
   document.getElementById("btn-edit-slots").addEventListener("click", () => {
     showView("main");
+    setMainTab("slots");
   });
+
+  if (tabChat) tabChat.addEventListener("click", () => setMainTab("chat"));
+  if (tabSlots) tabSlots.addEventListener("click", () => setMainTab("slots"));
+
+  if (btnHistoryToggle) {
+    btnHistoryToggle.addEventListener("click", () => {
+      historyExpanded = !historyExpanded;
+      renderHistory(state.plan_history || []);
+    });
+  }
 
   if (btnExportResults) {
     btnExportResults.addEventListener("click", () => {
@@ -527,6 +632,8 @@
     const raw = btn.dataset.planHistoryId;
     exportPlanSet(raw ? Number(raw) : null);
   });
+
+  setMainTab("chat");
 
   // boot: try restore session
   (async () => {

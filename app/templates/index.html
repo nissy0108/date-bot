@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>デートBot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -50,26 +50,34 @@
         </div>
       </header>
 
-      <div class="main-grid">
-        <section class="panel chat-panel">
-          <h2 class="panel-title">おしゃべり</h2>
-          <div id="chat-log" class="chat-log" aria-live="polite"></div>
-          <form id="chat-form" class="chat-form">
-            <input
-              id="chat-input"
-              type="text"
-              placeholder="例: こゆたんと土曜の午後、上野で安く遊びたい"
-              maxlength="2000"
-              autocomplete="off"
-            />
-            <button type="submit" class="btn btn-primary" id="btn-chat-send">送る</button>
-          </form>
-        </section>
+      <div class="main-shell">
+        <p id="global-slots-summary" class="global-slots-summary" aria-live="polite"></p>
 
-        <section class="panel slots-panel">
-          <h2 class="panel-title">いまの条件</h2>
-          <p id="slots-summary" class="slots-summary"></p>
+        <div class="main-tabs" role="tablist" aria-label="メイン">
+          <button type="button" role="tab" id="tab-chat" class="main-tab is-active" aria-selected="true" aria-controls="panel-chat">
+            おしゃべり
+          </button>
+          <button type="button" role="tab" id="tab-slots" class="main-tab" aria-selected="false" aria-controls="panel-slots">
+            条件を選ぶ
+          </button>
+        </div>
 
+        <div class="main-tab-panels">
+          <section class="panel chat-panel main-tab-panel" id="panel-chat" role="tabpanel" aria-labelledby="tab-chat">
+            <div id="chat-log" class="chat-log" aria-live="polite"></div>
+            <form id="chat-form" class="chat-form">
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="例: 土曜午後、上野で安く遊びたい"
+                maxlength="2000"
+                autocomplete="off"
+              />
+              <button type="submit" class="btn btn-primary" id="btn-chat-send">送る</button>
+            </form>
+          </section>
+
+          <section class="panel slots-panel main-tab-panel" id="panel-slots" role="tabpanel" aria-labelledby="tab-slots" hidden>
           <form id="slots-form" class="slots-form">
             <fieldset>
               <legend>予算（一人）</legend>
@@ -115,17 +123,21 @@
               条件を反映
             </button>
           </form>
+          </section>
+        </div>
+
+        <section class="history-panel" id="history-panel" aria-label="候補履歴" hidden>
+          <div class="history-head">
+            <h2 class="panel-title">候補履歴</h2>
+            <p class="history-sub">これまでの案3つセットがここに積み上がるよ。「コピー」でLINEなどに貼れるよ</p>
+          </div>
+          <div id="history-list" class="history-list"></div>
+          <p id="history-empty" class="history-empty">まだ候補がないよ。条件をそろえるとここに残るよ。</p>
+          <button type="button" id="btn-history-toggle" class="btn btn-ghost btn-block history-toggle" hidden>
+            すべての履歴を見る
+          </button>
         </section>
       </div>
-
-      <section class="history-panel" id="history-panel" aria-label="候補履歴">
-        <div class="history-head">
-          <h2 class="panel-title">候補履歴</h2>
-          <p class="history-sub">これまでの案3つセットがここに積み上がるよ。「コピー」でLINEなどに貼れるよ</p>
-        </div>
-        <div id="history-list" class="history-list"></div>
-        <p id="history-empty" class="history-empty">まだ候補がないよ。条件をそろえるとここに残るよ。</p>
-      </section>
     </section>
 
     <!-- Results -->

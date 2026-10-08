@@ -1,4 +1,4 @@
-"""Slot helpers for date-bot Phase B."""
+"""Slot helpers for date-bot Phase B / Phase D."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 
 DEFAULT_BUDGET = 3000
 SLOT_KEYS = ["budget", "time_slot", "area", "mood", "avoid_areas"]
+PRIORITY_AREAS = ["渋谷", "上野", "新宿", "お台場", "品川"]
 
 SLOT_OPTIONS = {
     "budget": ["3000", "5000", "8000", "10000", "15000", "20000"],
@@ -94,38 +95,71 @@ def merge_slots(slots: dict, patch: dict) -> dict:
     return slots
 
 
+def has_planning_signal(slots: dict) -> bool:
+    return bool(
+        slots.get("area")
+        or slots.get("mood")
+        or slots.get("time_slot")
+        or "budget" in slots
+    )
+
+
+def is_tentative_proposal(slots: dict) -> bool:
+    """エリアなしで mood / time_slot / budget のみ → 優先エリア仮案。"""
+    if slots.get("area"):
+        return False
+    return bool(
+        slots.get("mood") or slots.get("time_slot") or "budget" in slots
+    )
+
+
+def can_propose_plans(slots: dict) -> bool:
+    return has_planning_signal(slots)
+
+
 def missing_slots(slots: dict) -> list[str]:
-    need = []
-    if "time_slot" not in slots:
-        need.append("時間帯（昼/午後/夜/終日など）")
-    if "area" not in slots:
-        need.append("エリア（渋谷・上野・新宿／お台場〜品川など）")
-    return need
+    if can_propose_plans(slots):
+        return []
+    return ["エリアややりたいこと（例: 渋谷 / カフェ / 午後など）"]
 
 
 def template_clarify(need: list[str], slots: dict) -> str:
-    msg = "おけ。もうちょい条件ほしい。"
+    msg = "おけ。もうちょい教えて。"
     if need:
-        msg += " " + " / ".join(need) + " を教えて。"
+        msg += " " + " / ".join(need)
     avoid = slots.get("avoid_areas")
     if avoid:
         msg += f" （除外中: {'、'.join(avoid)}）"
-    msg += " 例:『上野で午後、一人5000円』"
+    msg += " 例:『渋谷でカフェ』『午後から遊びたい』"
     return msg
 
 
 def format_slots_summary(slots: dict) -> str:
+    if not slots or (
+        not has_planning_signal(slots)
+        and "budget" not in slots
+        and not slots.get("avoid_areas")
+    ):
+        return "まだ条件なし — 条件タブかおしゃべりで決めよう"
+
     avoid = slots.get("avoid_areas") or []
     if isinstance(avoid, list):
         avoid_s = "、".join(avoid) if avoid else "なし"
     else:
         avoid_s = str(avoid) if avoid else "なし"
+
+    budget_s = f"{slots['budget']}円" if "budget" in slots else "予算未定"
+    time_s = slots.get("time_slot") or "時間未定"
+    if slots.get("area"):
+        area_s = slots["area"]
+    elif is_tentative_proposal(slots):
+        area_s = "仮（優先エリア）"
+    else:
+        area_s = "エリア未定"
+    mood_s = slots.get("mood") or "なし"
+
     return (
-        f"予算 {slots.get('budget', '未設定')} / "
-        f"{slots.get('time_slot', '時間未定')} / "
-        f"{slots.get('area', 'エリア未定')} / "
-        f"mood {slots.get('mood', 'なし')} / "
-        f"除外 {avoid_s}"
+        f"{budget_s} / {time_s} / {area_s} / mood {mood_s} / 除外 {avoid_s}"
     )
 
 
@@ -134,7 +168,6 @@ def parse_plans_text(text: str) -> list[dict]:
     if not text or not str(text).strip():
         return []
     t = str(text).strip()
-    # 見出し行で分割: ### 案1： / 案1: / **案1**
     chunks = re.split(r"(?=(?:#{1,3}\s*)?案\d+\s*[：:])", t)
     plans: list[dict] = []
     for chunk in chunks:
@@ -154,19 +187,15 @@ def parse_plans_text(text: str) -> list[dict]:
         if m_head:
             plan = m_head.group(1).strip()
         else:
-            # タイトルだけの行のあとに本文が続くケース
             m_title = re.search(r"(?:#{1,3}\s*)?案\d+\s*[：:]\s*(.+)", chunk)
             plan = m_title.group(1).strip() if m_title else ""
-            # タイトル行以降を要約的に使う
             body = re.sub(r"(?:#{1,3}\s*)?案\d+\s*[：:].*", "", chunk, count=1).strip()
             if body and (not plan or len(plan) < 8):
                 plan = body
         reason = m_reason.group(1).strip() if m_reason else ""
-        # markdown装飾を軽く除去
         plan = re.sub(r"\*+", "", plan).strip()
         reason = re.sub(r"\*+", "", reason).strip()
         if plan:
-            # 長すぎる本文は先頭をカード用に短縮
             if len(plan) > 280:
                 plan = plan[:277].rstrip() + "…"
             if len(reason) > 160:

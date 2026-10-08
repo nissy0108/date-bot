@@ -22,15 +22,17 @@ from app.slots import (
     DEFAULT_BUDGET,
     SLOT_OPTIONS,
     format_slots_summary,
+    is_tentative_proposal,
     merge_slots,
     missing_slots,
     template_clarify,
 )
+from app.welcome import append_welcome_messages
 
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT.parent / ".env")
 
-APP_STATIC_VERSION = "20261006-export2"
+APP_STATIC_VERSION = "20261007-mobile-fill"
 
 app = FastAPI(title="デートBot", version="0.2.0")
 app.mount("/static", DevStaticFiles(directory=str(ROOT / "static")), name="static")
@@ -71,6 +73,16 @@ def _find_plan_history_entry(state: auth.SessionState, plan_history_id: int) -> 
         if entry.get("id") == plan_history_id:
             return entry
     return None
+
+
+def _plans_ready_bot_message(entry: dict, *, tentative: bool) -> str:
+    tail = (
+        f"案を3つ出したよ（候補セット#{entry['id']}）。"
+        "この画面で見てね。戻ったら下の「候補履歴」にも残してあるよ。"
+    )
+    if tentative:
+        return f"エリアまだ決めてなくても、人気エリアで3パターン出したよ（仮の案）。{tail}"
+    return f"条件そろったから{tail}"
 
 
 def _append_plan_history(state: auth.SessionState, plans: list) -> dict:
@@ -130,6 +142,7 @@ async def login(body: LoginBody, response: Response):
     )
     state = auth.get_session(sid)
     assert state is not None
+    append_welcome_messages(state.messages)
     return _state_payload(state, view_hint="main")
 
 
@@ -190,13 +203,11 @@ async def chat(body: ChatBody, request: Request):
     plans = result["plans"] or []
     sess.last_plans = plans
     entry = _append_plan_history(sess, plans)
+    tentative = is_tentative_proposal(sess.slots)
     sess.messages.append(
         {
             "role": "bot",
-            "content": (
-                f"条件そろったから案を3つ出したよ（候補セット#{entry['id']}）。"
-                "この画面で見てね。戻ったら下の「候補履歴」にも残してあるよ。"
-            ),
+            "content": _plans_ready_bot_message(entry, tentative=tentative),
         }
     )
     return _state_payload(sess, view_hint="results")
@@ -220,17 +231,14 @@ async def update_slots(body: SlotsBody, request: Request):
         sess.last_plans = None
         return _state_payload(sess, view_hint="main")
 
-    sess.slots.setdefault("budget", DEFAULT_BUDGET)
     plans = gemini_plans(sess.slots)
     sess.last_plans = plans
     entry = _append_plan_history(sess, plans)
+    tentative = is_tentative_proposal(sess.slots)
     sess.messages.append(
         {
             "role": "bot",
-            "content": (
-                f"条件そろったから案を3つ出したよ（候補セット#{entry['id']}）。"
-                "この画面で見てね。戻ったら下の「候補履歴」にも残してあるよ。"
-            ),
+            "content": _plans_ready_bot_message(entry, tentative=tentative),
         }
     )
     return _state_payload(sess, view_hint="results")
@@ -240,7 +248,7 @@ async def update_slots(body: SlotsBody, request: Request):
 async def reset(request: Request):
     _, sess = _require_session(request)
     auth.reset_session(sess)
-    sess.messages.append({"role": "bot", "content": "条件と履歴をリセットしたよ。"})
+    append_welcome_messages(sess.messages)
     return _state_payload(sess, view_hint="main")
 
 
